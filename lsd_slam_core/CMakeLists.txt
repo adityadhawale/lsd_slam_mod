@@ -1,25 +1,32 @@
-cmake_minimum_required(VERSION 2.8.7)
+cmake_minimum_required(VERSION 3.0.2)
 project(lsd_slam_core)
-include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 
-# Set the build type.  Options are:
-#  Coverage       : w/ debug symbols, w/o optimization, w/ code-coverage
-#  Debug          : w/ debug symbols, w/o optimization
-#  Release        : w/o debug symbols, w/ optimization
-#  RelWithDebInfo : w/ debug symbols, w/ optimization
-#  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
-set(ROS_BUILD_TYPE RelWithDebInfo)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SSE_FLAGS} -std=c++11 -fopenmp")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3")
 
-rosbuild_init()
+# set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
+# set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
+# set(CMAKE_MODULE_PATH   ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
-set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
-set(CMAKE_MODULE_PATH   ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+set(Eigen3_DIR "/home/adi/rando/eigen/release/share/eigen3/cmake")
+set(OpenCV_DIR "/home/adi/rando/opencv-2.4.8/release/share/OpenCV")
+find_package(Eigen3 3.3.90 REQUIRED EXACT NO_DEFAULT_PATH)
+find_package(OpenCV 2.4.8 REQUIRED EXACT NO_DEFAULT_PATH)
+find_package(Boost REQUIRED)
 
-find_package(Eigen3 REQUIRED)
-find_package(SuiteParse REQUIRED) # Apparently needed by g2o
+# find_package(SuiteParse REQUIRED) # Apparently needed by g2o
 find_package(X11 REQUIRED)
 
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  cv_bridge
+  dynamic_reconfigure
+  rosbag
+  sensor_msgs
+  std_msgs
+  lsd_slam_viewer
+  roslib
+)
 # FabMap
 # uncomment this part to enable fabmap
 #add_subdirectory(${PROJECT_SOURCE_DIR}/thirdparty/openFabMap)
@@ -28,19 +35,25 @@ find_package(X11 REQUIRED)
 #set(FABMAP_LIB openFABMAP )
 
 # Dynamic Reconfigure Services
-rosbuild_find_ros_package(dynamic_reconfigure)
-include(${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake)
-gencfg()
+# rosbuild_find_ros_package(dynamic_reconfigure)
+# include(${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake)
+# gencfg()
+
+# include(${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake)
+generate_dynamic_reconfigure_options(
+  cfg/LSDDebugParams.cfg
+  cfg/LSDParams.cfg
+)
 
 # SSE flags
-rosbuild_check_for_sse()
-add_definitions("-DUSE_ROS")
-add_definitions("-DENABLE_SSE")
+# rosbuild_check_for_sse()
+# add_definitions("-DUSE_ROS")
+# add_definitions("-DENABLE_SSE")
 
 # Also add some useful compiler flag
-set(CMAKE_CXX_FLAGS
-   "${CMAKE_CXX_FLAGS} ${SSE_FLAGS} -march=native  -std=c++0x"
-)
+# set(CMAKE_CXX_FLAGS
+   # "${CMAKE_CXX_FLAGS} ${SSE_FLAGS} -march=native  -std=c++0x"
+# )
 
 # Set source files
 set(lsd_SOURCE_FILES
@@ -78,20 +91,25 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/thirdparty/Sophus
   ${CSPARSE_INCLUDE_DIR} #Has been set by SuiteParse
   ${CHOLMOD_INCLUDE_DIR} #Has been set by SuiteParse
+  ${catkin_INCLUDE_DIRS}
+  /home/adi/rando/g2o/release/include
+  /usr/include/suitesparse
+  cfg/cpp
 )
 
 
 # build shared library.
-rosbuild_add_library(lsdslam SHARED ${SOURCE_FILES})
-target_link_libraries(lsdslam ${FABMAP_LIB} g2o_core g2o_stuff csparse cxsparse g2o_solver_csparse g2o_csparse_extension g2o_types_sim3 g2o_types_sba X11)
-rosbuild_link_boost(lsdslam thread)
+add_library(lsdslam SHARED ${SOURCE_FILES})
+# target_link_libraries(lsdslam ${FABMAP_LIB} g2o_core g2o_stuff csparse cxsparse g2o_solver_csparse g2o_csparse_extension g2o_types_sim3 g2o_types_sba X11)
+target_link_libraries(lsdslam ${catkin_LIBRARIES} ${FABMAP_LIB} /home/adi/rando/g2o/release/lib/libg2o_core.so /home/adi/rando/g2o/release/lib/libg2o_stuff.so /home/adi/rando/g2o/release/lib/libg2o_solver_csparse.so /home/adi/rando/g2o/release/lib/libg2o_solver_csparse.so /home/adi/rando/g2o/release/lib/libg2o_csparse_extension.so /home/adi/rando/g2o/release/lib/libg2o_types_sim3.so /home/adi/rando/g2o/release/lib/libg2o_types_sba.so X11 ${Boost_LIBRARES} boost_system ${OpenCV_LIBRARIES})
+# rosbuild_link_boost(lsdslam thread)
 
 
 # build live ros node
-rosbuild_add_executable(live_slam src/main_live_odometry.cpp)
+add_executable(live_slam src/main_live_odometry.cpp)
 target_link_libraries(live_slam lsdslam)
 
 
 # build image node
-rosbuild_add_executable(dataset_slam src/main_on_images.cpp)
+add_executable(dataset_slam src/main_on_images.cpp)
 target_link_libraries(dataset_slam lsdslam)
